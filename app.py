@@ -4,25 +4,62 @@ import plotly.express as px
 from scipy.optimize import linprog
 
 # -------------------------
-# PAGE CONFIG (clean UI)
+# PAGE CONFIG
 # -------------------------
-st.set_page_config(page_title="Restaurant Profit Dashboard", layout="wide")
+st.set_page_config(
+    page_title="Seralung Optimiz",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
+# -------------------------
+# CUSTOM UI (Fix buttons + clean SaaS look)
+# -------------------------
 st.markdown("""
     <style>
-        .main {background-color: #0f1117;}
-        h1, h2, h3 {color: #ffffff;}
-        .stMetric {background-color: #1c1f26; padding: 10px; border-radius: 10px;}
+    .main {
+        padding: 10px;
+    }
+
+    h1, h2, h3 {
+        color: #111;
+    }
+
+    /* FIX BUTTON VISIBILITY */
+    .stButton > button {
+        background-color: #111827;
+        color: white;
+        border-radius: 10px;
+        padding: 0.6em 1.2em;
+        font-weight: 600;
+        border: none;
+    }
+
+    .stButton > button:hover {
+        background-color: #2563eb;
+        color: white;
+    }
+
+    /* MOBILE FRIENDLY */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+    }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🍽️ Restaurant Profit Optimization Dashboard")
-st.write("Upload your data or use sample data to optimize profits and analyze performance.")
+# -------------------------
+# TITLE
+# -------------------------
+st.title("🍽️ Seralung Optimiz")
+st.write("AI-powered restaurant profit + pricing optimization system")
 
 # -------------------------
 # UPLOAD CSV
 # -------------------------
-uploaded_file = st.file_uploader("📂 Upload your CSV file", type=["csv"])
+uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -40,7 +77,7 @@ df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 # -------------------------
 # SETTINGS
 # -------------------------
-st.subheader("⚙️ Optimization Settings")
+st.subheader("⚙️ Settings")
 
 col1, col2 = st.columns(2)
 
@@ -55,7 +92,7 @@ if period == "Weekly":
     df["Max Demand"] *= 7
 
 # -------------------------
-# CALCULATE
+# OPTIMIZATION
 # -------------------------
 if st.button("🚀 Run Optimization"):
 
@@ -83,50 +120,71 @@ if st.button("🚀 Run Optimization"):
         # -------------------------
         # KPI METRICS
         # -------------------------
-        st.subheader("📊 Key Performance Overview")
+        st.subheader("📊 Performance Overview")
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("💰 Total Profit", f"${total_profit:,.2f}")
+        c1.metric("💰 Profit", f"${total_profit:,.2f}")
         c2.metric("📈 Revenue", f"${total_revenue:,.2f}")
         c3.metric("💸 Cost", f"${total_cost:,.2f}")
 
         # -------------------------
-        # CHARTS SECTION
+        # CHARTS
         # -------------------------
         st.subheader("📊 Analytics Dashboard")
 
         col1, col2 = st.columns(2)
 
-        # Bar chart: Profit by item
         with col1:
-            fig1 = px.bar(
-                df,
-                x="Item",
-                y="Total Profit",
-                text="Total Profit",
-                title="Profit by Item"
-            )
+            fig1 = px.bar(df, x="Item", y="Total Profit", title="Profit by Item")
             st.plotly_chart(fig1, use_container_width=True)
 
-        # Pie chart: profit share
         with col2:
-            fig2 = px.pie(
-                df,
-                names="Item",
-                values="Total Profit",
-                title="Profit Contribution Share"
-            )
+            fig2 = px.pie(df, names="Item", values="Total Profit", title="Profit Share")
             st.plotly_chart(fig2, use_container_width=True)
 
-        # Revenue vs Cost
-        fig3 = px.bar(
-            df,
-            x="Item",
-            y=["Revenue", "Total Cost"],
-            barmode="group",
-            title="Revenue vs Cost Analysis"
-        )
+        fig3 = px.bar(df, x="Item", y=["Revenue", "Total Cost"], barmode="group",
+                      title="Revenue vs Cost")
         st.plotly_chart(fig3, use_container_width=True)
+
+        # -------------------------
+        # SET PRICE (SENSITIVITY ANALYSIS)
+        # -------------------------
+        st.subheader("💰 Set Price (Pricing Decision Tool)")
+        st.write("Test how pricing changes affect profit and choose the best strategy.")
+
+        price_changes = [-0.2, -0.1, 0, 0.1, 0.2]
+
+        results = []
+
+        for change in price_changes:
+            temp = df.copy()
+
+            temp["Test Price"] = temp["Price"] * (1 + change)
+            temp["Test Profit"] = temp["Test Price"] - temp["Cost"]
+            temp["Scenario Profit"] = temp["Test Profit"] * temp["Optimal Qty"]
+
+            results.append({
+                "Price Change": f"{int(change*100)}%",
+                "Total Profit": temp["Scenario Profit"].sum()
+            })
+
+        scenario_df = pd.DataFrame(results)
+
+        fig4 = px.line(
+            scenario_df,
+            x="Price Change",
+            y="Total Profit",
+            markers=True,
+            title="Profit Sensitivity Curve"
+        )
+
+        st.plotly_chart(fig4, use_container_width=True)
+
+        st.dataframe(scenario_df, use_container_width=True)
+
+        best = scenario_df.loc[scenario_df["Total Profit"].idxmax()]
+
+        st.success(f"💡 Recommended Strategy: {best['Price Change']} price change gives highest profit")
 
         # -------------------------
         # OPTIMIZED TABLE
@@ -135,37 +193,34 @@ if st.button("🚀 Run Optimization"):
         st.dataframe(df, use_container_width=True)
 
         # -------------------------
-        # INSIGHTS SECTION (SMART)
+        # INSIGHTS
         # -------------------------
-        st.subheader("🧠 Business Insights")
-
-        insights = []
+        st.subheader("🧠 Insights")
 
         labour_used = df["Labour Used"].sum()
 
+        insights = []
+
         if labour_used > 0.9 * labour_hours:
-            insights.append("⚠️ Labour capacity is nearly fully utilized — this is limiting growth.")
+            insights.append("⚠️ Labour is your main constraint limiting profit.")
         else:
-            insights.append("✅ Labour capacity is sufficient for current demand.")
+            insights.append("✅ Labour capacity is sufficient.")
 
         best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
-        insights.append(f"🔥 Highest profit item: {best_item}")
+        insights.append(f"🔥 Best item: {best_item}")
 
-        low_profit = df[df["Profit"] < df["Profit"].mean()]["Item"].tolist()
-        if low_profit:
-            insights.append(f"📉 Improve or reduce focus on: {', '.join(low_profit)}")
-
-        profit_margin = (total_profit / total_revenue) * 100 if total_revenue else 0
-        insights.append(f"📊 Overall profit margin: {profit_margin:.2f}%")
+        low_items = df[df["Profit"] < df["Profit"].mean()]["Item"].tolist()
+        if low_items:
+            insights.append(f"📉 Improve pricing or reduce focus on: {', '.join(low_items)}")
 
         for i in insights:
             st.write(i)
 
-        st.success("Optimization completed successfully 🎯")
-
-        # Download
+        # -------------------------
+        # DOWNLOAD
+        # -------------------------
         csv = df.to_csv(index=False)
-        st.download_button("📥 Download Report", csv, "restaurant_report.csv", "text/csv")
+        st.download_button("📥 Download Report", csv, "seralung_optimiz.csv", "text/csv")
 
     else:
-        st.error("Optimization failed. Please check your input data.")
+        st.error("Optimization failed. Please check inputs.")
