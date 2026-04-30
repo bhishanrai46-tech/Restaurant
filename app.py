@@ -4,49 +4,65 @@ import plotly.express as px
 from scipy.optimize import linprog
 
 # -------------------------
-# PAGE CONFIG
+# PAGE CONFIG (clean UI)
 # -------------------------
-st.set_page_config(page_title="Restaurant Profit AI", layout="wide")
+st.set_page_config(page_title="Restaurant Profit Dashboard", layout="wide")
 
-st.title("🍽️ Restaurant Profit AI")
-st.caption("AI-powered menu optimization & profit dashboard")
+st.markdown("""
+    <style>
+        .main {background-color: #0f1117;}
+        h1, h2, h3 {color: #ffffff;}
+        .stMetric {background-color: #1c1f26; padding: 10px; border-radius: 10px;}
+    </style>
+""", unsafe_allow_html=True)
 
-# -------------------------
-# DEFAULT DATA
-# -------------------------
-default_data = pd.DataFrame({
-    "Item": ["Coffee", "Sandwich", "Burger"],
-    "Price": [5.0, 8.0, 12.0],
-    "Cost": [1.5, 3.0, 5.0],
-    "Labour": [0.05, 0.1, 0.2],
-    "Max Demand": [200, 80, 50]
-})
+st.title("🍽️ Restaurant Profit Optimization Dashboard")
+st.write("Upload your data or use sample data to optimize profits and analyze performance.")
 
 # -------------------------
-# SIDEBAR CONTROLS
+# UPLOAD CSV
 # -------------------------
-st.sidebar.header("⚙️ Controls")
+uploaded_file = st.file_uploader("📂 Upload your CSV file", type=["csv"])
 
-labour_hours = st.sidebar.slider("Total Labour Hours", 1.0, 100.0, 16.0)
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+else:
+    df = pd.DataFrame({
+        "Item": ["Coffee", "Sandwich", "Burger"],
+        "Price": [5.0, 8.0, 12.0],
+        "Cost": [1.5, 3.0, 5.0],
+        "Labour (hrs)": [0.05, 0.1, 0.2],
+        "Max Demand": [200, 80, 50]
+    })
 
-run = st.sidebar.button("🚀 Run Optimization")
+df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
 # -------------------------
-# DATA INPUT
+# SETTINGS
 # -------------------------
-st.subheader("📦 Menu Input Data")
+st.subheader("⚙️ Optimization Settings")
 
-df = st.data_editor(default_data, num_rows="dynamic", use_container_width=True)
+col1, col2 = st.columns(2)
+
+with col1:
+    labour_hours = st.number_input("Total Labour Hours", value=16.0)
+
+with col2:
+    period = st.selectbox("Planning Period", ["Daily", "Weekly"])
+
+if period == "Weekly":
+    labour_hours *= 7
+    df["Max Demand"] *= 7
 
 # -------------------------
-# OPTIMIZATION LOGIC
+# CALCULATE
 # -------------------------
-if run:
+if st.button("🚀 Run Optimization"):
 
     df["Profit"] = df["Price"] - df["Cost"]
 
     c = -df["Profit"].values
-    A = [df["Labour"].values]
+    A = [df["Labour (hrs)"].values]
     b = [labour_hours]
     bounds = [(0, x) for x in df["Max Demand"]]
 
@@ -56,65 +72,100 @@ if run:
 
         df["Optimal Qty"] = result.x
         df["Revenue"] = df["Optimal Qty"] * df["Price"]
+        df["Total Cost"] = df["Optimal Qty"] * df["Cost"]
         df["Total Profit"] = df["Optimal Qty"] * df["Profit"]
+        df["Labour Used"] = df["Optimal Qty"] * df["Labour (hrs)"]
 
-        labour_used = (df["Labour"] * result.x).sum()
         total_profit = df["Total Profit"].sum()
+        total_revenue = df["Revenue"].sum()
+        total_cost = df["Total Cost"].sum()
 
         # -------------------------
-        # KPI SECTION
+        # KPI METRICS
         # -------------------------
-        st.subheader("📊 Dashboard KPIs")
+        st.subheader("📊 Key Performance Overview")
 
         c1, c2, c3 = st.columns(3)
-
-        c1.metric("💰 Total Profit", f"${total_profit:.2f}")
-        c2.metric("🍽️ Items Sold", f"{int(df['Optimal Qty'].sum())}")
-        c3.metric("🕒 Labour Used", f"{labour_used:.2f} / {labour_hours}")
-
-        # -------------------------
-        # TABLE
-        # -------------------------
-        st.subheader("📦 Optimized Plan")
-        st.dataframe(df[["Item", "Optimal Qty", "Revenue", "Total Profit"]], use_container_width=True)
+        c1.metric("💰 Total Profit", f"${total_profit:,.2f}")
+        c2.metric("📈 Revenue", f"${total_revenue:,.2f}")
+        c3.metric("💸 Cost", f"${total_cost:,.2f}")
 
         # -------------------------
-        # CHARTS
+        # CHARTS SECTION
         # -------------------------
-        st.subheader("📊 Insights")
+        st.subheader("📊 Analytics Dashboard")
 
         col1, col2 = st.columns(2)
 
+        # Bar chart: Profit by item
         with col1:
-            fig = px.bar(df, x="Item", y="Total Profit", title="Profit per Item")
-            st.plotly_chart(fig, use_container_width=True)
+            fig1 = px.bar(
+                df,
+                x="Item",
+                y="Total Profit",
+                text="Total Profit",
+                title="Profit by Item"
+            )
+            st.plotly_chart(fig1, use_container_width=True)
 
+        # Pie chart: profit share
         with col2:
-            fig = px.bar(df, x="Item", y="Optimal Qty", title="Optimal Quantity")
-            st.plotly_chart(fig, use_container_width=True)
+            fig2 = px.pie(
+                df,
+                names="Item",
+                values="Total Profit",
+                title="Profit Contribution Share"
+            )
+            st.plotly_chart(fig2, use_container_width=True)
 
-        col3, col4 = st.columns(2)
-
-        with col3:
-            fig = px.pie(df, names="Item", values="Revenue", title="Revenue Share")
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col4:
-            fig = px.bar(df, x="Item", y="Labour", title="Labour Impact")
-            st.plotly_chart(fig, use_container_width=True)
+        # Revenue vs Cost
+        fig3 = px.bar(
+            df,
+            x="Item",
+            y=["Revenue", "Total Cost"],
+            barmode="group",
+            title="Revenue vs Cost Analysis"
+        )
+        st.plotly_chart(fig3, use_container_width=True)
 
         # -------------------------
-        # INSIGHTS
+        # OPTIMIZED TABLE
         # -------------------------
-        st.subheader("🧠 AI Insights")
+        st.subheader("📦 Optimized Plan")
+        st.dataframe(df, use_container_width=True)
 
-        best_item = df.loc[df["Profit"].idxmax(), "Item"]
-        st.success(f"🔥 Best focus item: {best_item}")
+        # -------------------------
+        # INSIGHTS SECTION (SMART)
+        # -------------------------
+        st.subheader("🧠 Business Insights")
+
+        insights = []
+
+        labour_used = df["Labour Used"].sum()
 
         if labour_used > 0.9 * labour_hours:
-            st.warning("⚠️ Labour is a bottleneck")
+            insights.append("⚠️ Labour capacity is nearly fully utilized — this is limiting growth.")
         else:
-            st.info("✅ Labour capacity is sufficient")
+            insights.append("✅ Labour capacity is sufficient for current demand.")
+
+        best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
+        insights.append(f"🔥 Highest profit item: {best_item}")
+
+        low_profit = df[df["Profit"] < df["Profit"].mean()]["Item"].tolist()
+        if low_profit:
+            insights.append(f"📉 Improve or reduce focus on: {', '.join(low_profit)}")
+
+        profit_margin = (total_profit / total_revenue) * 100 if total_revenue else 0
+        insights.append(f"📊 Overall profit margin: {profit_margin:.2f}%")
+
+        for i in insights:
+            st.write(i)
+
+        st.success("Optimization completed successfully 🎯")
+
+        # Download
+        csv = df.to_csv(index=False)
+        st.download_button("📥 Download Report", csv, "restaurant_report.csv", "text/csv")
 
     else:
-        st.error("Optimization failed")
+        st.error("Optimization failed. Please check your input data.")
