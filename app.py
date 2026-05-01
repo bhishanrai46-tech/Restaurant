@@ -13,51 +13,92 @@ st.set_page_config(
 )
 
 # -------------------------
-# CUSTOM UI (Fix buttons + clean SaaS look)
+# DARK SAAS UI THEME
 # -------------------------
 st.markdown("""
-    <style>
-    .main {
-        padding: 10px;
-    }
+<style>
 
-    h1, h2, h3 {
-        color: #111;
-    }
+/* BACKGROUND */
+[data-testid="stAppViewContainer"] {
+    background-color: #0B0F1A;
+    color: #E5E7EB;
+}
 
-    /* FIX BUTTON VISIBILITY */
-    .stButton > button {
-        background-color: #111827;
-        color: white;
-        border-radius: 10px;
-        padding: 0.6em 1.2em;
-        font-weight: 600;
-        border: none;
-    }
+/* TEXT */
+h1, h2, h3 {
+    color: #E5E7EB;
+}
 
-    .stButton > button:hover {
-        background-color: #2563eb;
-        color: white;
-    }
+p {
+    color: #9CA3AF;
+}
 
-    /* MOBILE FRIENDLY */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-left: 12px;
-            padding-right: 12px;
-        }
+/* METRIC CARDS */
+.stMetric {
+    background-color: #111827;
+    padding: 15px;
+    border-radius: 12px;
+}
+
+/* BUTTON */
+.stButton > button {
+    background-color: #1F2937;
+    color: #E5E7EB;
+    border-radius: 10px;
+    border: 1px solid #374151;
+    padding: 0.6em 1.2em;
+    font-weight: 600;
+}
+
+.stButton > button:hover {
+    background-color: #2563EB;
+    color: white;
+}
+
+/* TABLE */
+[data-testid="stDataFrame"] {
+    background-color: #111827;
+    border-radius: 10px;
+}
+
+/* ALERT BOXES */
+.stAlert-success {
+    background-color: #064E3B;
+    color: #D1FAE5;
+    border-radius: 10px;
+}
+
+.stAlert-warning {
+    background-color: #78350F;
+    color: #FEF3C7;
+    border-radius: 10px;
+}
+
+.stAlert-error {
+    background-color: #7F1D1D;
+    color: #FECACA;
+    border-radius: 10px;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 10px;
+        padding-right: 10px;
     }
-    </style>
+}
+
+</style>
 """, unsafe_allow_html=True)
 
 # -------------------------
 # TITLE
 # -------------------------
 st.title("🍽️ Seralung Optimiz")
-st.write("AI-powered restaurant profit + pricing optimization system")
+st.write("AI-powered restaurant profit & pricing optimization")
 
 # -------------------------
-# UPLOAD CSV
+# CSV UPLOAD
 # -------------------------
 uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
 
@@ -92,7 +133,7 @@ if period == "Weekly":
     df["Max Demand"] *= 7
 
 # -------------------------
-# OPTIMIZATION
+# OPTIMIZATION BUTTON
 # -------------------------
 if st.button("🚀 Run Optimization"):
 
@@ -118,7 +159,7 @@ if st.button("🚀 Run Optimization"):
         total_cost = df["Total Cost"].sum()
 
         # -------------------------
-        # KPI METRICS
+        # KPI
         # -------------------------
         st.subheader("📊 Performance Overview")
 
@@ -130,38 +171,39 @@ if st.button("🚀 Run Optimization"):
         # -------------------------
         # CHARTS
         # -------------------------
-        st.subheader("📊 Analytics Dashboard")
+        st.subheader("📊 Analytics")
+
+        fig1 = px.bar(df, x="Item", y="Total Profit", title="Profit by Item")
+        fig2 = px.pie(df, names="Item", values="Total Profit", title="Revenue Mix")
+        fig3 = px.bar(df, x="Item", y=["Revenue", "Total Cost"], barmode="group")
+
+        for fig in [fig1, fig2, fig3]:
+            fig.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="#0B0F1A",
+                plot_bgcolor="#0B0F1A",
+                font=dict(color="#E5E7EB")
+            )
 
         col1, col2 = st.columns(2)
+        col1.plotly_chart(fig1, use_container_width=True)
+        col2.plotly_chart(fig2, use_container_width=True)
 
-        with col1:
-            fig1 = px.bar(df, x="Item", y="Total Profit", title="Profit by Item")
-            st.plotly_chart(fig1, use_container_width=True)
-
-        with col2:
-            fig2 = px.pie(df, names="Item", values="Total Profit", title="Profit Share")
-            st.plotly_chart(fig2, use_container_width=True)
-
-        fig3 = px.bar(df, x="Item", y=["Revenue", "Total Cost"], barmode="group",
-                      title="Revenue vs Cost")
         st.plotly_chart(fig3, use_container_width=True)
 
         # -------------------------
-        # SET PRICE (SENSITIVITY ANALYSIS)
+        # SET PRICE TOOL
         # -------------------------
-        st.subheader("💰 Set Price (Pricing Decision Tool)")
-        st.write("Test how pricing changes affect profit and choose the best strategy.")
+        st.subheader("💰 Set Price (AI Pricing Tool)")
 
         price_changes = [-0.2, -0.1, 0, 0.1, 0.2]
-
         results = []
 
         for change in price_changes:
             temp = df.copy()
-
-            temp["Test Price"] = temp["Price"] * (1 + change)
-            temp["Test Profit"] = temp["Test Price"] - temp["Cost"]
-            temp["Scenario Profit"] = temp["Test Profit"] * temp["Optimal Qty"]
+            temp["Adj Price"] = temp["Price"] * (1 + change)
+            temp["Adj Profit"] = temp["Adj Price"] - temp["Cost"]
+            temp["Scenario Profit"] = temp["Adj Profit"] * temp["Optimal Qty"]
 
             results.append({
                 "Price Change": f"{int(change*100)}%",
@@ -175,46 +217,38 @@ if st.button("🚀 Run Optimization"):
             x="Price Change",
             y="Total Profit",
             markers=True,
-            title="Profit Sensitivity Curve"
+            title="Pricing Sensitivity Curve"
+        )
+
+        fig4.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="#0B0F1A",
+            plot_bgcolor="#0B0F1A",
+            font=dict(color="#E5E7EB")
         )
 
         st.plotly_chart(fig4, use_container_width=True)
-
         st.dataframe(scenario_df, use_container_width=True)
 
         best = scenario_df.loc[scenario_df["Total Profit"].idxmax()]
-
-        st.success(f"💡 Recommended Strategy: {best['Price Change']} price change gives highest profit")
-
-        # -------------------------
-        # OPTIMIZED TABLE
-        # -------------------------
-        st.subheader("📦 Optimized Plan")
-        st.dataframe(df, use_container_width=True)
+        st.success(f"💡 Best Pricing Strategy: {best['Price Change']} change maximizes profit")
 
         # -------------------------
-        # INSIGHTS
+        # INSIGHTS (AI STYLE)
         # -------------------------
-        st.subheader("🧠 Insights")
+        st.subheader("🧠 Insights & Recommendations")
 
         labour_used = df["Labour Used"].sum()
 
-        insights = []
-
         if labour_used > 0.9 * labour_hours:
-            insights.append("⚠️ Labour is your main constraint limiting profit.")
-        else:
-            insights.append("✅ Labour capacity is sufficient.")
+            st.warning("🔴 Labour is your main constraint. Increasing capacity will increase profit.")
 
         best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
-        insights.append(f"🔥 Best item: {best_item}")
+        st.success(f"⭐ Focus on {best_item} — highest profit contributor")
 
         low_items = df[df["Profit"] < df["Profit"].mean()]["Item"].tolist()
         if low_items:
-            insights.append(f"📉 Improve pricing or reduce focus on: {', '.join(low_items)}")
-
-        for i in insights:
-            st.write(i)
+            st.error(f"⚠️ Low margin items: {', '.join(low_items)}")
 
         # -------------------------
         # DOWNLOAD
@@ -223,4 +257,4 @@ if st.button("🚀 Run Optimization"):
         st.download_button("📥 Download Report", csv, "seralung_optimiz.csv", "text/csv")
 
     else:
-        st.error("Optimization failed. Please check inputs.")
+        st.error("Optimization failed.")
