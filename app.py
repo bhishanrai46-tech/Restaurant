@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from scipy.optimize import linprog
-import datetime
 
 # -------------------------
 # CONFIG
@@ -39,8 +38,7 @@ st.sidebar.title("🍽️ Seralung Optimiz")
 page = st.sidebar.radio("Navigate", [
     "📊 Dashboard",
     "💰 Set Price",
-    "🧠 Insights",
-    "📄 Reports"
+    "🧠 Insights"
 ])
 
 uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
@@ -61,132 +59,100 @@ else:
     })
 
 # -------------------------
-# OPTIMIZATION
+# RUN BUTTON (IMPORTANT FIX)
 # -------------------------
-df["Profit"] = df["Price"] - df["Cost"]
+if st.sidebar.button("🚀 Run Optimization"):
 
-c = -df["Profit"].values
-A = [df["Labour (hrs)"].values]
-b = [labour_hours]
-bounds = [(0, x) for x in df["Max Demand"]]
+    df["Profit"] = df["Price"] - df["Cost"]
 
-result = linprog(c, A_ub=A, b_ub=b, bounds=bounds, method="highs")
+    c = -df["Profit"].values
+    A = [df["Labour (hrs)"].values]
+    b = [labour_hours]
+    bounds = [(0, x) for x in df["Max Demand"]]
 
-if result.success:
+    result = linprog(c, A_ub=A, b_ub=b, bounds=bounds, method="highs")
 
-    df["Optimal Qty"] = result.x
-    df["Total Profit"] = df["Optimal Qty"] * df["Profit"]
-    df["Revenue"] = df["Optimal Qty"] * df["Price"]
-    df["Total Cost"] = df["Optimal Qty"] * df["Cost"]
-    df["Labour Used"] = df["Optimal Qty"] * df["Labour (hrs)"]
+    if result.success:
 
-    total_profit = df["Total Profit"].sum()
-    total_revenue = df["Revenue"].sum()
+        df["Optimal Qty"] = result.x
+        df["Total Profit"] = df["Optimal Qty"] * df["Profit"]
+        df["Revenue"] = df["Optimal Qty"] * df["Price"]
+        df["Total Cost"] = df["Optimal Qty"] * df["Cost"]
 
-    # -------------------------
-    # STORE HISTORY (SESSION)
-    # -------------------------
-    if "history" not in st.session_state:
-        st.session_state.history = []
+        total_profit = df["Total Profit"].sum()
+        total_revenue = df["Revenue"].sum()
+        total_cost = df["Total Cost"].sum()
 
-    st.session_state.history.append({
-        "date": datetime.datetime.now(),
-        "profit": total_profit
-    })
+        # -------------------------
+        # DASHBOARD
+        # -------------------------
+        if page == "📊 Dashboard":
 
-    history_df = pd.DataFrame(st.session_state.history)
+            st.title("📊 Dashboard")
 
-    # -------------------------
-    # DASHBOARD
-    # -------------------------
-    if page == "📊 Dashboard":
+            c1, c2, c3 = st.columns(3)
+            c1.metric("💰 Profit", f"${total_profit:,.2f}")
+            c2.metric("📈 Revenue", f"${total_revenue:,.2f}")
+            c3.metric("💸 Cost", f"${total_cost:,.2f}")
 
-        st.title("📊 Dashboard")
+            fig1 = px.bar(df, x="Item", y="Total Profit", title="Profit by Item")
+            fig2 = px.pie(df, names="Item", values="Total Profit")
 
-        c1, c2 = st.columns(2)
-        c1.metric("💰 Profit", f"${total_profit:,.2f}")
-        c2.metric("📈 Revenue", f"${total_revenue:,.2f}")
+            fig1.update_layout(template="plotly_dark")
+            fig2.update_layout(template="plotly_dark")
 
-        fig = px.line(history_df, x="date", y="profit", title="Profit Trend")
-        fig.update_layout(template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+            col1, col2 = st.columns(2)
+            col1.plotly_chart(fig1, use_container_width=True)
+            col2.plotly_chart(fig2, use_container_width=True)
 
-    # -------------------------
-    # PRICING TOOL
-    # -------------------------
-    elif page == "💰 Set Price":
+        # -------------------------
+        # PRICING TOOL
+        # -------------------------
+        elif page == "💰 Set Price":
 
-        st.title("💰 Pricing Strategy")
+            st.title("💰 Pricing Strategy")
 
-        price_changes = [-0.2, -0.1, 0, 0.1, 0.2]
-        results = []
+            price_changes = [-0.2, -0.1, 0, 0.1, 0.2]
+            results = []
 
-        for change in price_changes:
-            temp = df.copy()
-            temp["Adj Price"] = temp["Price"] * (1 + change)
-            temp["Adj Profit"] = temp["Adj Price"] - temp["Cost"]
-            temp["Scenario Profit"] = temp["Adj Profit"] * temp["Optimal Qty"]
+            for change in price_changes:
+                temp = df.copy()
+                temp["Adj Price"] = temp["Price"] * (1 + change)
+                temp["Adj Profit"] = temp["Adj Price"] - temp["Cost"]
+                temp["Scenario Profit"] = temp["Adj Profit"] * temp["Optimal Qty"]
 
-            results.append({
-                "Change": f"{int(change*100)}%",
-                "Profit": temp["Scenario Profit"].sum()
-            })
+                results.append({
+                    "Change": f"{int(change*100)}%",
+                    "Profit": temp["Scenario Profit"].sum()
+                })
 
-        scenario_df = pd.DataFrame(results)
+            scenario_df = pd.DataFrame(results)
 
-        fig = px.line(scenario_df, x="Change", y="Profit", markers=True)
-        fig.update_layout(template="plotly_dark")
+            fig = px.line(scenario_df, x="Change", y="Profit", markers=True)
+            fig.update_layout(template="plotly_dark")
 
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-        best = scenario_df.loc[scenario_df["Profit"].idxmax()]
+            best = scenario_df.loc[scenario_df["Profit"].idxmax()]
+            st.success(f"💡 Best pricing move: {best['Change']}")
 
-        st.success(f"💡 Best move: Adjust price by {best['Change']}")
+        # -------------------------
+        # INSIGHTS
+        # -------------------------
+        elif page == "🧠 Insights":
 
-    # -------------------------
-    # INSIGHTS (ACTIONABLE)
-    # -------------------------
-    elif page == "🧠 Insights":
+            st.title("🧠 Insights")
 
-        st.title("🧠 AI Recommendations")
+            best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
+            st.success(f"⭐ Focus on {best_item}")
 
-        best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
+            low_items = df[df["Profit"] < df["Profit"].mean()]["Item"].tolist()
 
-        st.success(f"Increase focus on **{best_item}** — highest profit contributor")
+            if low_items:
+                st.warning(f"⚠️ Improve pricing for: {', '.join(low_items)}")
 
-        # actionable recommendation
-        st.info(f"👉 Increase {best_item} price by 5–10% to boost profit")
-
-        low_items = df[df["Profit"] < df["Profit"].mean()]["Item"].tolist()
-
-        if low_items:
-            st.warning(f"Reduce or reprice: {', '.join(low_items)}")
-
-        if df["Labour Used"].sum() > 0.9 * labour_hours:
-            st.error("Labour is limiting growth — consider hiring or simplifying menu")
-
-    # -------------------------
-    # REPORTS (DOWNLOADABLE)
-    # -------------------------
-    elif page == "📄 Reports":
-
-        st.title("📄 Business Report")
-
-        report = f"""
-        Seralung Optimiz Report
-
-        Total Profit: ${total_profit:.2f}
-        Revenue: ${total_revenue:.2f}
-
-        Top Item: {df.loc[df['Total Profit'].idxmax(), 'Item']}
-
-        Recommendation:
-        Focus on high-margin items and optimize pricing.
-        """
-
-        st.text(report)
-
-        st.download_button("📥 Download Report", report, "report.txt")
+    else:
+        st.error("Optimization failed")
 
 else:
-    st.error("Optimization failed")
+    st.info("👈 Upload data and click 'Run Optimization' to start.")
