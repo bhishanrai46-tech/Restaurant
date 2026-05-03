@@ -9,7 +9,7 @@ from scipy.optimize import linprog
 st.set_page_config(page_title="Seralung Optimiz", layout="wide")
 
 # -------------------------
-# CLEAN DARK UI (SAFE)
+# SIMPLE DARK STYLE (SAFE)
 # -------------------------
 st.markdown("""
 <style>
@@ -17,24 +17,21 @@ st.markdown("""
     background-color: #0D1117;
     color: #E6EDF3;
 }
-h1, h2, h3 {
-    color: #E6EDF3;
-}
-.stButton > button {
-    background-color: #238636;
-    color: white;
-    border-radius: 8px;
-    border: none;
-}
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# SIDEBAR
+# TITLE
 # -------------------------
-st.sidebar.title("🍽️ Seralung Optimiz")
+st.title("🍽️ Seralung Optimiz")
+st.write("Menu Engineering & Weekly Profit Report")
 
-uploaded_file = st.sidebar.file_uploader("Upload Menu CSV", type=["csv"])
+# -------------------------
+# SIDEBAR INPUTS
+# -------------------------
+st.sidebar.header("Inputs")
+
+uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 labour_hours = st.sidebar.number_input("Labour Hours", value=16.0)
 
 # -------------------------
@@ -42,8 +39,8 @@ labour_hours = st.sidebar.number_input("Labour Hours", value=16.0)
 # -------------------------
 default_data = pd.DataFrame({
     "Item": ["Coffee", "Burger", "Pasta"],
-    "Price": [5, 12, 15],
-    "Cost": [1.5, 5, 10],
+    "Price": [5.0, 12.0, 15.0],
+    "Cost": [1.5, 5.0, 10.0],
     "Labour (hrs)": [0.05, 0.2, 0.25],
     "Max Demand": [200, 80, 40]
 })
@@ -55,7 +52,7 @@ if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
     except:
-        st.error("Invalid CSV format")
+        st.error("❌ Failed to read CSV file")
         st.stop()
 else:
     df = default_data.copy()
@@ -66,16 +63,24 @@ else:
 required_cols = ["Item", "Price", "Cost", "Labour (hrs)", "Max Demand"]
 
 if not all(col in df.columns for col in required_cols):
-    st.error("CSV must contain: Item, Price, Cost, Labour (hrs), Max Demand")
+    st.error("CSV must include: Item, Price, Cost, Labour (hrs), Max Demand")
     st.stop()
 
 # -------------------------
-# RUN BUTTON
+# SHOW DATA
 # -------------------------
-if st.sidebar.button("🚀 Run Analysis"):
+st.subheader("📋 Menu Data")
+st.dataframe(df, use_container_width=True)
 
+# -------------------------
+# RUN ANALYSIS BUTTON
+# -------------------------
+if st.button("🚀 Run Analysis"):
+
+    # Profit calculation
     df["Profit"] = df["Price"] - df["Cost"]
 
+    # Optimization setup
     try:
         c = -df["Profit"].values
         A = [df["Labour (hrs)"].values]
@@ -83,77 +88,73 @@ if st.sidebar.button("🚀 Run Analysis"):
         bounds = [(0, x) for x in df["Max Demand"]]
 
         result = linprog(c, A_ub=A, b_ub=b, bounds=bounds, method="highs")
-    except:
-        st.error("Optimization error")
+    except Exception as e:
+        st.error(f"Optimization error: {e}")
         st.stop()
 
     if not result.success:
         st.error("Optimization failed")
         st.stop()
 
-    # -------------------------
-    # RESULTS
-    # -------------------------
+    # Results
     df["Optimal Qty"] = result.x
     df["Total Profit"] = df["Optimal Qty"] * df["Profit"]
 
     total_profit = df["Total Profit"].sum()
 
     # -------------------------
-    # HEADER
+    # WEEKLY REPORT
     # -------------------------
-    st.title("📊 Weekly Owner Report")
+    st.subheader("📊 Weekly Owner Report")
 
-    st.metric("💰 Weekly Profit", f"${total_profit:,.0f}")
+    st.metric("💰 Total Profit", f"${total_profit:,.2f}")
 
-    # -------------------------
-    # MENU ENGINEERING
-    # -------------------------
-    st.subheader("📊 Menu Performance")
-
-    fig = px.bar(df, x="Item", y="Total Profit")
+    # Chart
+    fig = px.bar(df, x="Item", y="Total Profit", title="Profit by Item")
     fig.update_layout(template="plotly_dark")
     st.plotly_chart(fig, use_container_width=True)
 
     # -------------------------
     # INSIGHTS
     # -------------------------
-    st.subheader("🧠 Recommendations")
+    st.subheader("🧠 Key Insights")
 
     best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
     worst_item = df.loc[df["Total Profit"].idxmin(), "Item"]
 
-    st.success(f"⭐ Best item: {best_item} → promote or increase price")
-    st.warning(f"⚠️ Weak item: {worst_item} → reprice or remove")
+    st.success(f"⭐ Best Item: {best_item}")
+    st.warning(f"⚠️ Weak Item: {worst_item}")
 
     # -------------------------
     # PRICING SUGGESTION
     # -------------------------
     st.subheader("💰 Pricing Suggestion")
 
-    suggested_increase = round(df.loc[df["Total Profit"].idxmax(), "Price"] * 0.1, 2)
+    best_price = df.loc[df["Total Profit"].idxmax(), "Price"]
+    suggested_increase = round(best_price * 0.1, 2)
 
-    st.info(f"Increase {best_item} price by ~${suggested_increase} to improve margins")
+    st.info(f"Increase {best_item} price by ~${suggested_increase}")
 
     # -------------------------
-    # SIMPLE OWNER SUMMARY
+    # SIMPLE SUMMARY (SELLABLE PART)
     # -------------------------
-    st.subheader("📄 Weekly Summary")
+    st.subheader("📄 Simple Owner Summary")
 
     summary = f"""
-    This week you made ${total_profit:.0f} profit.
+This week you made ${total_profit:.2f} profit.
 
-    Best item: {best_item}
-    Weak item: {worst_item}
+Best item: {best_item}
+Weak item: {worst_item}
 
-    Action:
-    - Increase price of {best_item}
-    - Review or remove {worst_item}
-    """
+Recommended actions:
+- Increase price of {best_item}
+- Review or remove {worst_item}
+"""
 
     st.text(summary)
 
+    # Download
     st.download_button("📥 Download Report", summary, "weekly_report.txt")
 
 else:
-    st.info("👈 Upload your menu CSV and click 'Run Analysis'")
+    st.info("👆 Click 'Run Analysis' to generate report")
