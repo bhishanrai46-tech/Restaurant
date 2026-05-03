@@ -9,24 +9,61 @@ from scipy.optimize import linprog
 st.set_page_config(page_title="Seralung Optimiz", layout="wide")
 
 # -------------------------
-# DARK UI
+# PREMIUM UI (CLAUDE STYLE)
 # -------------------------
 st.markdown("""
 <style>
 [data-testid="stAppViewContainer"] {
-    background-color: #0B0F1A;
-    color: #E5E7EB;
+    background-color: #0D1117;
+    color: #E6EDF3;
 }
-.stMetric {
-    background-color: #111827;
+
+h1, h2, h3 {
+    color: #E6EDF3;
+    font-weight: 600;
+}
+
+/* CARD STYLE */
+.card {
+    background-color: #161B22;
+    padding: 18px;
+    border-radius: 14px;
+    margin-bottom: 12px;
+    border: 1px solid #30363D;
+}
+
+/* BUTTON */
+.stButton > button {
+    background-color: #238636;
+    color: white;
+    border-radius: 8px;
+    border: none;
+    padding: 0.6em 1.2em;
+}
+
+.stButton > button:hover {
+    background-color: #2EA043;
+}
+
+/* INSIGHT BOXES */
+.success-box {
+    background-color: #132A1A;
     padding: 12px;
     border-radius: 10px;
 }
-.stButton > button {
-    background-color: #1F2937;
-    color: white;
-    border-radius: 8px;
+
+.warning-box {
+    background-color: #2A1A12;
+    padding: 12px;
+    border-radius: 10px;
 }
+
+.danger-box {
+    background-color: #2A1212;
+    padding: 12px;
+    border-radius: 10px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,13 +72,7 @@ st.markdown("""
 # -------------------------
 st.sidebar.title("🍽️ Seralung Optimiz")
 
-page = st.sidebar.radio("Navigate", [
-    "📊 Dashboard",
-    "💰 Set Price",
-    "🧠 Insights"
-])
-
-uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+uploaded_file = st.sidebar.file_uploader("Upload Menu CSV", type=["csv"])
 labour_hours = st.sidebar.number_input("Labour Hours", value=16.0)
 
 # -------------------------
@@ -51,17 +82,17 @@ if uploaded_file:
     df = pd.read_csv(uploaded_file)
 else:
     df = pd.DataFrame({
-        "Item": ["Coffee", "Sandwich", "Burger"],
-        "Price": [5.0, 8.0, 12.0],
-        "Cost": [1.5, 3.0, 5.0],
-        "Labour (hrs)": [0.05, 0.1, 0.2],
-        "Max Demand": [200, 80, 50]
+        "Item": ["Coffee", "Burger", "Pasta"],
+        "Price": [5, 12, 15],
+        "Cost": [1.5, 5, 10],
+        "Labour (hrs)": [0.05, 0.2, 0.25],
+        "Max Demand": [200, 80, 40]
     })
 
 # -------------------------
-# RUN BUTTON (IMPORTANT FIX)
+# RUN
 # -------------------------
-if st.sidebar.button("🚀 Run Optimization"):
+if st.sidebar.button("🚀 Run Analysis"):
 
     df["Profit"] = df["Price"] - df["Cost"]
 
@@ -76,83 +107,84 @@ if st.sidebar.button("🚀 Run Optimization"):
 
         df["Optimal Qty"] = result.x
         df["Total Profit"] = df["Optimal Qty"] * df["Profit"]
-        df["Revenue"] = df["Optimal Qty"] * df["Price"]
-        df["Total Cost"] = df["Optimal Qty"] * df["Cost"]
 
         total_profit = df["Total Profit"].sum()
-        total_revenue = df["Revenue"].sum()
-        total_cost = df["Total Cost"].sum()
 
         # -------------------------
-        # DASHBOARD
+        # HEADER
         # -------------------------
-        if page == "📊 Dashboard":
+        st.title("📊 Weekly Owner Report")
 
-            st.title("📊 Dashboard")
-
-            c1, c2, c3 = st.columns(3)
-            c1.metric("💰 Profit", f"${total_profit:,.2f}")
-            c2.metric("📈 Revenue", f"${total_revenue:,.2f}")
-            c3.metric("💸 Cost", f"${total_cost:,.2f}")
-
-            fig1 = px.bar(df, x="Item", y="Total Profit", title="Profit by Item")
-            fig2 = px.pie(df, names="Item", values="Total Profit")
-
-            fig1.update_layout(template="plotly_dark")
-            fig2.update_layout(template="plotly_dark")
-
-            col1, col2 = st.columns(2)
-            col1.plotly_chart(fig1, use_container_width=True)
-            col2.plotly_chart(fig2, use_container_width=True)
+        st.markdown(f"""
+        <div class="card">
+        <h2>💰 This Week</h2>
+        <h1>${total_profit:,.0f} Profit</h1>
+        </div>
+        """, unsafe_allow_html=True)
 
         # -------------------------
-        # PRICING TOOL
+        # MENU ENGINEERING
         # -------------------------
-        elif page == "💰 Set Price":
+        st.subheader("📊 Menu Performance")
 
-            st.title("💰 Pricing Strategy")
-
-            price_changes = [-0.2, -0.1, 0, 0.1, 0.2]
-            results = []
-
-            for change in price_changes:
-                temp = df.copy()
-                temp["Adj Price"] = temp["Price"] * (1 + change)
-                temp["Adj Profit"] = temp["Adj Price"] - temp["Cost"]
-                temp["Scenario Profit"] = temp["Adj Profit"] * temp["Optimal Qty"]
-
-                results.append({
-                    "Change": f"{int(change*100)}%",
-                    "Profit": temp["Scenario Profit"].sum()
-                })
-
-            scenario_df = pd.DataFrame(results)
-
-            fig = px.line(scenario_df, x="Change", y="Profit", markers=True)
-            fig.update_layout(template="plotly_dark")
-
-            st.plotly_chart(fig, use_container_width=True)
-
-            best = scenario_df.loc[scenario_df["Profit"].idxmax()]
-            st.success(f"💡 Best pricing move: {best['Change']}")
+        fig = px.bar(df, x="Item", y="Total Profit")
+        fig.update_layout(template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
 
         # -------------------------
-        # INSIGHTS
+        # AI INSIGHTS (KEY FEATURE)
         # -------------------------
-        elif page == "🧠 Insights":
+        st.subheader("🧠 AI Recommendations")
 
-            st.title("🧠 Insights")
+        best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
+        worst_item = df.loc[df["Total Profit"].idxmin(), "Item"]
 
-            best_item = df.loc[df["Total Profit"].idxmax(), "Item"]
-            st.success(f"⭐ Focus on {best_item}")
+        # BEST
+        st.markdown(f"""
+        <div class="success-box">
+        ⭐ Best performer: <b>{best_item}</b><br>
+        Increase promotion or highlight this item.
+        </div>
+        """, unsafe_allow_html=True)
 
-            low_items = df[df["Profit"] < df["Profit"].mean()]["Item"].tolist()
+        # WORST
+        st.markdown(f"""
+        <div class="danger-box">
+        ⚠️ Worst item: <b>{worst_item}</b><br>
+        Consider removing or repricing.
+        </div>
+        """, unsafe_allow_html=True)
 
-            if low_items:
-                st.warning(f"⚠️ Improve pricing for: {', '.join(low_items)}")
+        # PRICING SUGGESTION
+        st.markdown(f"""
+        <div class="warning-box">
+        💡 Pricing opportunity:<br>
+        Increase <b>{best_item}</b> price by 5–10% to boost profit.
+        </div>
+        """, unsafe_allow_html=True)
+
+        # -------------------------
+        # SIMPLE OWNER SUMMARY
+        # -------------------------
+        st.subheader("📄 Simple Summary")
+
+        summary = f"""
+        This week you made ${total_profit:.0f} profit.
+
+        Your best item is {best_item}.
+        Your worst item is {worst_item}.
+
+        Recommended action:
+        - Increase price of {best_item}
+        - Review or remove {worst_item}
+        """
+
+        st.text(summary)
+
+        st.download_button("📥 Download Report", summary, "weekly_report.txt")
 
     else:
         st.error("Optimization failed")
 
 else:
-    st.info("👈 Upload data and click 'Run Optimization' to start.")
+    st.info("Upload menu and click Run Analysis")
